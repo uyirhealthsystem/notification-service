@@ -1,0 +1,27 @@
+[Unit]
+Description=Uyir notification-service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=notification-service
+WorkingDirectory=/opt/notification-service/current
+EnvironmentFile=/opt/notification-service/shared/notification-service.env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node dist/server.js
+# The service exits on its own when the Kafka consumer gives up for good, so
+# systemd bringing it back is the recovery path - not just for crashes.
+Restart=always
+RestartSec=5
+# server.ts force-exits 10s after SIGTERM; give it a little more than that.
+TimeoutStopSec=15
+# hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/notification-service
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

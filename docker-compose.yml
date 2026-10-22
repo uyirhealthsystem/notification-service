@@ -1,0 +1,16 @@
+# Local-dev helper: Mailpit is a fake SMTP server that captures every message
+# and shows it in a web UI - nothing leaves your machine.
+#   SMTP  -> localhost:1025   (point SMTP_HOST/SMTP_PORT here)
+#   UI    -> http://localhost:8025
+# Kafka itself lives in ../docker-compose.kafka.yml.
+services:
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      MP_MAX_MESSAGES: "500"
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"

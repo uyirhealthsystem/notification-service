@@ -1,0 +1,143 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ------------------------------------------------------------------ CI ----
+  test:
+    name: Typecheck + tests + build
+    runs-on: ubuntu-latest
+
+    # No Kafka or SMTP needed: tests mock the mailer / nodemailer and never
+    # connect to a broker. NODE_ENV=test keeps the mailer in log mode.
+    # Postgres is real: the migrations are applied to it and
+    # test/deliver.db.test.ts runs the notifications ledger against it.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: notification_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      LOG_LEVEL: silent
+      KAFKA_BROKERS: localhost:9092
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/notification_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/notification_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply migrations to the test database
+        run: npx prisma migrate deploy
+
+      # Fails if schema.prisma was changed without adding a migration for it.
+      - name: Migrations match the schema
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Docker image builds
+        run: docker build -t notification-service:ci .
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
+
+  # -------------------------------------------------------------- Deploy ----
+  deploy:
+    name: Deploy to EC2
+    needs: test
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Ship exactly what the test job built and tested.
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Assemble release bundle
+        run: |
+          rm -rf release
+          mkdir -p release
+          cp -r dist prisma package.json package-lock.json release/
+
+      - name: Configure SSH
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload release to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          rsync -az --delete --mkpath \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            release/ \
+            "$EC2_USER@$EC2_HOST:/opt/notification-service/releases/next/"
+
+      # Migrates the database, restarts the service and waits for /health
+      # (consumer joined the Kafka group). Rolls back to the previous release
+      # and fails the job if not.
+      - name: Activate release (install, migrate, restart, health check)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" 'bash -s' < deploy/remote-release.sh
+
+      - name: Clean up key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

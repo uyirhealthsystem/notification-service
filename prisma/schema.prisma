@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One row per notification this service sends (or decided not to send), on any
+// channel. Today only EMAIL is wired up; SMS / PUSH / WHATSAPP reuse this same
+// table - a new channel is a new sender in src/channels plus a deliver() call
+// in the handler, never a schema change.
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  WHATSAPP
+}
+
+// PENDING  - row written, send not yet confirmed (in flight, or failed
+//            transiently and waiting for Kafka to redeliver)
+// SENT     - the provider accepted it
+// FAILED   - the provider rejected it permanently; the event was dead-lettered
+// SKIPPED  - deliberately not sent (no contact address, code already expired)
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+// The rendered message body is deliberately NOT stored: password-reset bodies
+// carry a live code, and the template + event identify what was sent.
+model Notification {
+  id                String              @id @default(uuid())
+  // Same event + channel + recipient = same notification. A redelivered Kafka
+  // message finds its row here and is not sent twice. See src/notifications/deliver.ts.
+  idempotencyKey    String              @unique
+  channel           NotificationChannel
+  status            NotificationStatus  @default(PENDING)
+  // Which template rendered it, e.g. "password_reset", "emergency_booking_requested".
+  template          String
+  // Email address, E.164 phone number, or push device token - per channel.
+  // Null only for a SKIPPED row that had nobody to send to.
+  recipient         String?
+  // What the notification is about (userId, bookingId) - "did hospital X get the alert for booking Y?"
+  referenceId       String?
+  eventType         String
+  eventVersion      Int
+  // Where the event came from. Offset is a string: Kafka offsets are int64.
+  sourceTopic       String
+  sourcePartition   Int
+  sourceOffset      String
+  // "smtp" | "log" today; later e.g. "ses", "twilio", "fcm", "meta-whatsapp".
+  provider          String
+  // The provider's id for the message (SMTP Message-ID, Twilio SID...), for support/bounce lookups.
+  providerMessageId String?
+  // Delivery attempts from this service (each may include the sender's own internal retries).
+  attempts          Int                 @default(0)
+  // Last error for PENDING/FAILED, or why it was SKIPPED.
+  statusReason      String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  sentAt            DateTime?
+
+  @@index([referenceId])
+  @@index([recipient])
+  @@index([status, createdAt])
+  @@map("notifications")
+}

@@ -1,0 +1,14 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.log
+.git
+.github
+coverage
+docs
+test
+README.md
+release
+deploy
