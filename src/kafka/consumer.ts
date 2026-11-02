@@ -5,6 +5,7 @@ import { NonRetryableError } from "../lib/errors";
 import { envelopeSchema, Envelope } from "../events/schema";
 import { handlePasswordResetRequested } from "../handlers/passwordResetRequested";
 import { handleEmergencyBookingRequested } from "../handlers/emergencyBookingRequested";
+import { handleFollowUpReminderDue } from "../handlers/followUpReminderDue";
 import { setConsumerState } from "./status";
 import type { EventContext } from "../notifications/deliver";
 
@@ -19,6 +20,7 @@ export interface EventHandler {
 export const handlers: Record<string, EventHandler> = {
   PasswordResetRequested: { version: 1, handle: handlePasswordResetRequested },
   EmergencyBookingRequested: { version: 1, handle: handleEmergencyBookingRequested },
+  FollowUpReminderDue: { version: 1, handle: handleFollowUpReminderDue },
 };
 
 export type DeadLetter = (reason: string, details?: unknown) => Promise<void>;
