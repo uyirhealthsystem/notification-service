@@ -23,6 +23,34 @@ export const passwordResetRequestedData = z.object({
 });
 export type PasswordResetRequestedData = z.infer<typeof passwordResetRequestedData>;
 
+// authservice -> "auth.events" -> LoginOtpRequested (v1)
+// Second step of email/password login: the 6-digit sign-in code to email.
+export const loginOtpRequestedData = z.object({
+  userId: z.string(),
+  email: z.string().email(),
+  otp: z.string().regex(/^\d{6}$/, "otp must be 6 digits"),
+  expiresAt: z.iso.datetime(),
+  portalName: z.string(),
+  ip: z.string().nullish(),
+  userAgent: z.string().nullish(),
+});
+export type LoginOtpRequestedData = z.infer<typeof loginOtpRequestedData>;
+
+// authservice -> "auth.events" -> UserLoggedIn (v1)
+// Sent after every successful login; ip / userAgent are null when unknown.
+export const userLoggedInData = z.object({
+  userId: z.string(),
+  email: z.string().email(),
+  role: z.string(),
+  portalId: z.string(),
+  portalName: z.string(),
+  method: z.enum(["PASSWORD", "GOOGLE"]),
+  ip: z.string().nullish(),
+  userAgent: z.string().nullish(),
+  loggedInAt: z.iso.datetime(),
+});
+export type UserLoggedInData = z.infer<typeof userLoggedInData>;
+
 // hospitalservice -> "hospital.events" -> EmergencyBookingRequested (v1)
 // hospitalName / hospitalEmail are null when the hospital never filled them in.
 export const emergencyBookingRequestedData = z.object({
