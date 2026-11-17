@@ -9,6 +9,8 @@ It handles two events:
 | Topic | Event | Producer | Email |
 |---|---|---|---|
 | `auth.events` | `PasswordResetRequested` | authservice | "reset your password" code to the user |
+| `auth.events` | `LoginOtpRequested` | authservice | 6-digit sign-in code (second step of email/password login) |
+| `auth.events` | `UserLoggedIn` | authservice | "new sign-in to your account" alert to the user |
 | `hospital.events` | `EmergencyBookingRequested` | hospitalservice | new-emergency alert to the hospital's contact email (skipped if it has none) |
 
 New event types are added as a schema + a template + one line in the handler

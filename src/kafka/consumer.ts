@@ -4,6 +4,8 @@ import { logger } from "../lib/logger";
 import { NonRetryableError } from "../lib/errors";
 import { envelopeSchema, Envelope } from "../events/schema";
 import { handlePasswordResetRequested } from "../handlers/passwordResetRequested";
+import { handleUserLoggedIn } from "../handlers/userLoggedIn";
+import { handleLoginOtpRequested } from "../handlers/loginOtpRequested";
 import { handleEmergencyBookingRequested } from "../handlers/emergencyBookingRequested";
 import { handleFollowUpReminderDue } from "../handlers/followUpReminderDue";
 import { setConsumerState } from "./status";
@@ -19,6 +21,8 @@ export interface EventHandler {
 // Event types not listed belong to other consumers and are skipped.
 export const handlers: Record<string, EventHandler> = {
   PasswordResetRequested: { version: 1, handle: handlePasswordResetRequested },
+  UserLoggedIn: { version: 1, handle: handleUserLoggedIn },
+  LoginOtpRequested: { version: 1, handle: handleLoginOtpRequested },
   EmergencyBookingRequested: { version: 1, handle: handleEmergencyBookingRequested },
   FollowUpReminderDue: { version: 1, handle: handleFollowUpReminderDue },
 };
