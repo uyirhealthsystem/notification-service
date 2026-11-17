@@ -17,7 +17,14 @@ KEEP=5
 
 PORT=$(grep -E '^PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d '"' || true)
 PORT=${PORT:-4100}
-PREVIOUS=$(readlink -f "$ROOT/current" 2>/dev/null || true)
+# The release 'current' points at, if any. Only follow a real symlink into
+# releases/: `readlink -f` on a missing path returns the path itself, which made
+# the rollback point 'current' at itself (a symlink loop systemd can't chdir into).
+PREVIOUS=""
+if [ -L "$ROOT/current" ]; then
+  PREVIOUS=$(readlink -f "$ROOT/current" 2>/dev/null || true)
+  case "$PREVIOUS" in "$ROOT"/releases/*) ;; *) PREVIOUS="" ;; esac
+fi
 
 TS=$(date +%Y%m%d%H%M%S)
 REL="$ROOT/releases/$TS"
@@ -52,7 +59,8 @@ done
 if [ "$healthy" != true ]; then
   echo "!! $TS did not become healthy:"
   curl -sS "http://127.0.0.1:$PORT/health" || true; echo
-  sudo systemctl status "$SVC" --no-pager -l | tail -n 30 || true
+  # -n 40: include the service's own last log lines (e.g. "Invalid environment").
+  sudo systemctl status "$SVC" --no-pager -l -n 40 || true
   if [ -n "$PREVIOUS" ] && [ -d "$PREVIOUS" ] && [ "$PREVIOUS" != "$REL" ]; then
     echo "==> rolling back to $(basename "$PREVIOUS")"
     ln -sfn "$PREVIOUS" "$ROOT/current"
