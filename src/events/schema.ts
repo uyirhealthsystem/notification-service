@@ -87,3 +87,17 @@ export const followUpReminderDueData = z.object({
   instructions: z.string().nullish(),
 });
 export type FollowUpReminderDueData = z.infer<typeof followUpReminderDueData>;
+
+// hospitalservice -> "hospital.events" -> HospitalClaimCodeIssued (v1)
+// A PRO onboarded this hospital; the email gives the hospital its id and the one-time claim code so its
+// own HOSPITAL account can link itself in the app. reason: INITIAL (just onboarded) or RESEND (a new code
+// replaced the old one). expiresAt is ISO-8601. The claim code is a secret - never log it.
+export const hospitalClaimCodeIssuedData = z.object({
+  hospitalId: z.string().min(1),
+  hospitalName: z.string().nullish(),
+  email: z.string().email(),
+  claimCode: z.string().min(1),
+  expiresAt: z.string().datetime({ offset: true }),
+  reason: z.enum(["INITIAL", "RESEND"]),
+});
+export type HospitalClaimCodeIssuedData = z.infer<typeof hospitalClaimCodeIssuedData>;

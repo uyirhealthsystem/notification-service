@@ -8,6 +8,7 @@ import { handleUserLoggedIn } from "../handlers/userLoggedIn";
 import { handleLoginOtpRequested } from "../handlers/loginOtpRequested";
 import { handleEmergencyBookingRequested } from "../handlers/emergencyBookingRequested";
 import { handleFollowUpReminderDue } from "../handlers/followUpReminderDue";
+import { handleHospitalClaimCodeIssued } from "../handlers/hospitalClaimCodeIssued";
 import { setConsumerState } from "./status";
 import type { EventContext } from "../notifications/deliver";
 
@@ -25,6 +26,7 @@ export const handlers: Record<string, EventHandler> = {
   LoginOtpRequested: { version: 1, handle: handleLoginOtpRequested },
   EmergencyBookingRequested: { version: 1, handle: handleEmergencyBookingRequested },
   FollowUpReminderDue: { version: 1, handle: handleFollowUpReminderDue },
+  HospitalClaimCodeIssued: { version: 1, handle: handleHospitalClaimCodeIssued },
 };
 
 export type DeadLetter = (reason: string, details?: unknown) => Promise<void>;
